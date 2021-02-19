@@ -25,6 +25,7 @@ module Data.CARD
   , crEqv
   , (|&|)
   , impl
+  , checkLe
   , checkBlock
   , checkBlock'
   -- * Common instances
@@ -47,7 +48,14 @@ class (Eq (Ef s), Eq (Cr s), Ord (Ef s), Ord (Cr s)) => CARD s where
   defineEffect :: s -> Ef s -> s
 
   data Cr s
+  defineLe :: Cr s -> Effect s -> Effect s -> Bool
+  defineLe c e1 (Effect es) | e1 == ef0 = 
+    and $ map (not . defineConflict c) es
+  defineLe _ _ _ = False
+
   defineConflict :: Cr s -> Ef s -> Bool
+  defineConflict c e = defineLe c ef0 (ef e)
+
 
 newtype Effect s = Effect [Ef s] deriving (Generic)
 
@@ -127,6 +135,12 @@ impl (Conref c1) (Conref c2) = and (Set.map (`Set.member` c1) c2)
 impl EQV _ = True
 impl (Conref _) EQV = False
 
+-- | Check that first effect is less than or equal to second effect,
+-- according to order defined by conref.
+checkLe :: (CARD s) => Conref s -> Effect s -> Effect s -> Bool
+checkLe (Conref cs) e1 e2 = 
+  and (defineLe <$> (Set.toList cs) <*> pure e1 <*> pure e2)
+
 -- | Check if conref blocks effect, returning 'True' when it does
 -- block.
 checkBlock :: (CARD s) => Conref s -> Effect s -> Bool
@@ -169,6 +183,15 @@ instance CARD Counter where
     (GEQ,Add _) -> True
     (_,SetTo _) -> True
     _ -> False
+  defineLe c (Effect es1) (Effect es2) = 
+    let f e a = case e of
+                  Add n -> a + n
+                  Sub n -> a - n
+        v1 = foldr f 0 es1
+        v2 = foldr f 0 es2
+    in case c of
+         LEQ -> v1 <= v2
+         GEQ -> v1 >= v2
 
 instance ToJSON Counter where
   toEncoding = genericToEncoding defaultOptions
