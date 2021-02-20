@@ -16,6 +16,7 @@ library
                      , Data.EventGraph.Ipfs
                      , Data.CARD
                      , Data.CARD.Locks
+                     , Data.CARD.Res
                      , Data.CARD.Store
                      , Data.CvRDT
                      , Data.LamportClock

@@ -42,6 +42,15 @@ import qualified Data.List as List
 import GHC.Generics
 import Data.Aeson
 
+-- | Remove elements of the second list from the first list, returning
+-- either the first element that the first list didn't have, or the
+-- finished remaining first list.
+listSubtract :: (Eq a) => [a] -> [a] -> Either a [a]
+listSubtract as (b:bs) =
+  if b `elem` as
+     then listSubtract (List.delete b as) bs
+     else Left b
+listSubtract as [] = Right as
 
 class (Eq (Ef s), Eq (Cr s), Ord (Ef s), Ord (Cr s)) => CARD s where
   data Ef s
@@ -56,6 +65,17 @@ class (Eq (Ef s), Eq (Cr s), Ord (Ef s), Ord (Cr s)) => CARD s where
   defineConflict :: Cr s -> Ef s -> Bool
   defineConflict c e = defineLe c ef0 (ef e)
 
+  -- | Subtract the second effect from the first, returning the
+  -- remainder of the first effect if successful, and nothing if the
+  -- first did not contain enough to be subtracted.
+  extractE :: Effect s -> Effect s -> Either () (Effect s)
+  extractE (Effect es1) (Effect es2) = case listSubtract es1 es2 of
+                                         Right es -> Right (Effect es)
+                                         Left e -> Left ()
+
+  -- | Simplify an effect by combining atoms by domain-specific rules.
+  collapseE :: Effect s -> Effect s
+  collapseE = id
 
 newtype Effect s = Effect [Ef s] deriving (Generic)
 
@@ -183,15 +203,30 @@ instance CARD Counter where
     (GEQ,Add _) -> True
     (_,SetTo _) -> True
     _ -> False
-  defineLe c (Effect es1) (Effect es2) = 
-    let f e a = case e of
-                  Add n -> a + n
-                  Sub n -> a - n
-        v1 = foldr f 0 es1
-        v2 = foldr f 0 es2
+  defineLe c e1 e2 =
+    let v1 = ctrEffAmt e1
+        v2 = ctrEffAmt e2
     in case c of
          LEQ -> v1 <= v2
          GEQ -> v1 >= v2
+
+  extractE e1 e2 = case (collapseE e1, collapseE e2) of
+    (Effect [Add n], Effect [Add m]) | n > m -> 
+                                       Right $ Effect [Add (n - m)]
+    (Effect [Sub n], Effect [Sub m]) | n > m -> 
+                                       Right $ Effect [Sub (n - m)]
+    (e,Effect []) -> Right e
+    _ -> Left ()
+  collapseE e = case ctrEffAmt e of
+    n | n == 0 -> Effect []
+    n | n > 0 -> Effect [Add n]
+    n | n < 0 -> Effect [Sub (-n)]
+
+ctrEffAmt (Effect es) =
+  let f e a = case e of
+                Add n -> a + n
+                Sub n -> a - n
+  in foldr f 0 es
 
 instance ToJSON Counter where
   toEncoding = genericToEncoding defaultOptions
