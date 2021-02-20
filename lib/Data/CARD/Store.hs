@@ -6,6 +6,7 @@ module Data.CARD.Store
   , Store
   , locks
   , hist
+  , ress
   , histAppend
   -- * Convenient re-exports
   , module Data.CARD
@@ -18,6 +19,7 @@ import Control.Lens
 import Data.CvRDT
 import Data.CARD
 import Data.CARD.Locks
+import Data.CARD.Res
 
 -- | A 'Hist' is a sequence of CARD effects each paired with an 'i'
 -- identifier naming the replica responsible for them.  The
@@ -43,15 +45,21 @@ evalHist r s0 c0 summs =
     c0
 
 -- | A 'Store' for a 'CARD' 's' is a 'CvRDT' pair consisting of a
--- distributed lock state (the 'Locks') and an event history (the
--- 'Hist').
-type Store c i s = (Locks i s, Hist c i s)
+-- distributed lock state (the 'Locks'), a reservation store (the
+-- 'Res') and an event history (the 'Hist').
+type Store c i s = ((Locks i s, Hist c i s), Res i s)
 
+-- | Lens to the lock state
 locks :: Lens' (Store c i s) (Locks i s)
-locks = _1
+locks = _1 . _1
 
+-- | Lens to the history structure
 hist :: Lens' (Store c i s) (Hist c i s)
-hist = _2
+hist = _1 . _2
+
+-- | Lens to the reservation store
+ress :: Lens' (Store c i s) (Res i s)
+ress = _2
 
 -- | Emit a store effect, tagged with a replica ID.
 histAppend :: (Ord i, CARD s, CvChain r c (i, Effect s) m) 

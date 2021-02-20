@@ -53,7 +53,7 @@ runNode' :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i
          -> String -- ^ IPFS API URI
          -> NetConf i -- ^ Replica network
          -> s -- ^ Initial store value
-         -> Store c i s -- ^ Initial store (locks + history
+         -> Store c i s -- ^ Initial store (locks + history + res)
          -> DManagerSettings c i s
          -> Script (IpfsEG i) c i s a -- ^ Actions to perform
          -> IO (a, (s, Store c i s))
@@ -89,7 +89,7 @@ runNode :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i,
 runNode i ipfsAddr net dmsets script = 
   fst <$> runNode' i ipfsAddr net val0 store0 dmsets script
   where val0 = baseStoreValue dmsets
-        store0 = (mempty, Data.EventGraph.empty)
+        store0 = ((mempty, Data.EventGraph.empty), mempty)
 
 -- | Run a node, loading the initial state from the given file (if it
 -- exists) and writing the final state to the file on exit (creating
@@ -108,8 +108,8 @@ runNodeFile i ipfsAddr net sfile dmsets script = do
     True -> decodeFileEither sfile >>= \case
       Right state -> return state
       Left e -> do print e
-                   die $ "Safe file \"" <> sfile <> "\" exists but is unreadable."
-    False -> return (baseStoreValue dmsets, (mempty,Data.EventGraph.empty))
+                   die $ "Save file \"" <> sfile <> "\" exists but is unreadable."
+    False -> return (baseStoreValue dmsets, ((mempty,Data.EventGraph.empty),mempty))
   (a,stateFinal) <- runNode' i ipfsAddr net val0 store0 dmsets script
   encodeFile sfile stateFinal
   return a
