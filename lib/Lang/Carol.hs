@@ -4,6 +4,8 @@ module Lang.Carol
   , issue
   , query
   , queryT
+  , consume
+  , produce
   , assert
 
     -- * Running Carol operations
