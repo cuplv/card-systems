@@ -11,6 +11,7 @@ module Data.CARD.Store
   -- * Convenient re-exports
   , module Data.CARD
   , module Data.CARD.Locks
+  , module Data.CARD.Res
   ) where
 
 import Data.Map (Map,lookup)
@@ -46,8 +47,8 @@ evalHist r s0 c0 summs =
 
 -- | A 'Store' for a 'CARD' 's' is a 'CvRDT' pair consisting of a
 -- distributed lock state (the 'Locks'), a reservation store (the
--- 'Res') and an event history (the 'Hist').
-type Store c i s = ((Locks i s, Hist c i s), Res i s)
+-- 'Ress') and an event history (the 'Hist').
+type Store c i s = ((Locks i s, Hist c i s), Ress i s)
 
 -- | Lens to the lock state
 locks :: Lens' (Store c i s) (Locks i s)
@@ -58,7 +59,7 @@ hist :: Lens' (Store c i s) (Hist c i s)
 hist = _1 . _2
 
 -- | Lens to the reservation store
-ress :: Lens' (Store c i s) (Res i s)
+ress :: Lens' (Store c i s) (Ress i s)
 ress = _2
 
 -- | Emit a store effect, tagged with a replica ID.

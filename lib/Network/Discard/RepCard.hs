@@ -54,21 +54,21 @@ data Job s m a =
 handleQ' :: (Monad m, CARD s)
         => (r -> m a) -- ^ Return callback
         -> m s -- ^ Latest store ref
-        -> HelpMe (Conref s) s (r, Effect s)
+        -> HelpMe (Conref s) s (r, Update s)
         -> m (Job s m a)
 handleQ' fin latest = \case
   HelpMe c f 
     | c == crT -> handleQ' fin latest . f =<< latest
     | otherwise -> return (Request c (handleQ' fin latest . f))
-  GotIt (r,e) 
-    | e == ef0 -> return finish
-    | otherwise -> return (Emit e (return finish))
+  GotIt (r,u) 
+    | u ^. issued == ef0 -> return finish
+    | otherwise -> return (Emit (u ^. issued) (return finish))
     where finish = Finish (fin r)
 
 handleQM :: (CARD s)
          => (a -> IO ()) -- ^ Action to take on completion
          -> ManagerConn i r s -- ^ Manager to handle if necessary
-         -> HelpMe (Conref s) s (a, Effect s)
+         -> HelpMe (Conref s) s (a, Update s)
          -> IO ()
 handleQM fin man h = handleQ' fin (getLatestVal man) h >>= \case
   Finish m -> m
@@ -76,7 +76,7 @@ handleQM fin man h = handleQ' fin (getLatestVal man) h >>= \case
 
 handleQR :: (CARD s)
          => ManagerConn i r s
-         -> HelpMe (Conref s) s (a, Effect s)
+         -> HelpMe (Conref s) s (a, Update s)
          -> IO a
 handleQR man h = do
   tmv <- newEmptyTMVarIO
@@ -376,15 +376,15 @@ getWaiting = do
   wr <- manWaitingRoom <$> get
   let findReady (c,fj) (Nothing,wr') = 
         if (holding' i ls `impl` c) && confirmed i others ls
-           then (Just fj,wr')
+           then (Just (c,fj),wr')
            else (Nothing, (c,fj):wr')
       findReady cfj (fj,wr') = (fj,cfj:wr')
       (r,wr') = foldr findReady (Nothing,[]) wr
   case r of
-    Just fj -> do
+    Just (c,fj) -> do
       modify (\m -> m { manWaitingRoom = wr' })
       modify (\m -> m { grantMultiplex = grantMultiplex m + 1 })
-      Just <$> (liftIO . fj =<< manGetLatest)
+      Just <$> (liftIO . fj =<< manGetLatest' c)
     Nothing -> return Nothing
 
 anyWaiting :: (ManC r c i s k) => ManM r c i s k Bool
@@ -394,6 +394,15 @@ anyWaiting = manWaitingRoom <$> get >>= \case
 
 manGetLatest :: (ManC r c i s k) => ManM r c i s k s
 manGetLatest = (^.stateVal) <$> (lstm . readTVar =<< manLatest <$> get)
+
+-- | Get latest store value, weakened by the worst-case view of
+-- reservations according to the supplied conref.
+manGetLatest' :: (ManC r c i s k) => Conref s -> ManM r c i s k s
+manGetLatest' c = do
+  s <- lstm . readTVar =<< manLatest <$> get
+  let re = resWX c (s ^. stateStore . ress)
+      v = runEffect (s ^. stateVal) re
+  return v
 
 putOnHold :: (ManC r c i s k) => Conref s -> (s -> IO (Job s IO ())) -> ManM r c i s k ()
 putOnHold c fj = do
@@ -436,7 +445,7 @@ workOnJob = manCurrentJob <$> get >>= \case
         if not $ requested i c ls
            then lift (emitOn' locks $ return . request i c) >> return ()
            else if confirmed i others ls
-                   then do advJob . f =<< manGetLatest
+                   then do advJob . f =<< manGetLatest' c
                            workOnJob
                    else return ()
       Emit e m -> do
