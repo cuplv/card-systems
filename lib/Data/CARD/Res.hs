@@ -5,12 +5,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Data.CARD.Res
-  ( Ress (..)
-  -- , ResId
-  -- , owner
-  -- , producer
-  -- , seqNum
+  ( Ress
   , produceRes
+  , consumeRes
   , resLookup
   , resAll
   , resWX
@@ -55,12 +52,33 @@ highestSeqNum i = foldr max 0
                   . map (view seqNum)
                   . filter (\k -> k^.producer == i)
 
+-- | Produce a sequence of effect reservations.  The first replica ID
+-- argument is the producing replica, and the reservations are pairs
+-- of the form (Owner,Effect), where the Owner is the replica that
+-- will be able to consume this effect.
 produceRes :: (Ord i, CARD s) => i -> [(i,Effect s)] -> Ress i s -> Ress i s
 produceRes i es (Ress m) =
   let n0 = highestSeqNum i (Map.keys m)
   in Ress $ foldr (\(n,(o,e)) a -> Map.insert (o,i,n) (Just e) a) 
                   mempty
                   (zip [(n0 + 1) ..] es)
+
+-- | Consume an effect from a reservation store.  The first argument
+-- is the ID of the replica that is doing the consuming.  If the
+-- effect can be removed, the result is Just (RemainingResStore).
+-- Otherwise, the result is Nothing.
+consumeRes :: (Ord i, CARD s) 
+  => i
+  -> Effect s
+  -> Ress i s
+  -> Maybe (Ress i s)
+consumeRes i e (Ress m) =
+  let fr ((k,Just e'):es) | k^.owner == i && e' == e = Just k
+      fr (a:es) = fr es
+      fr [] = Nothing
+  in case fr (Map.assocs m) of
+       Just k -> Just (Ress (Map.delete k m))
+       Nothing -> Nothing
 
 -- | Look up effect reservations owned by a replica.
 resLookup :: (Ord i, CARD s) => i -> Ress i s -> [Effect s]
