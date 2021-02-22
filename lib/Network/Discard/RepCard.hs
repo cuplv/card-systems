@@ -47,8 +47,11 @@ import Network.Discard.RateControl
 import Network.Discard.Broadcast
 
 data Job s m a = 
-    Emit    (Effect s) (     m (Job s m a))
+    -- | Issue the given effect
+    Emit    (Update s) (     m (Job s m a))
+    -- | Request locks for the given conref
   | Request (Conref s) (s -> m (Job s m a))
+    -- | Return the value to the caller
   | Finish             (     m a          )
 
 handleQ' :: (Monad m, CARD s)
@@ -61,8 +64,10 @@ handleQ' fin latest = \case
     | c == crT -> handleQ' fin latest . f =<< latest
     | otherwise -> return (Request c (handleQ' fin latest . f))
   GotIt (r,u) 
-    | u ^. issued == ef0 -> return finish
-    | otherwise -> return (Emit (u ^. issued) (return finish))
+    |    u^.issued == ef0 
+      && u^.produced == ef0 
+      && u^.consumed == ef0 -> return finish
+    | otherwise -> return (Emit u (return finish))
     where finish = Finish (fin r)
 
 handleQM :: (CARD s)
@@ -448,17 +453,39 @@ workOnJob = manCurrentJob <$> get >>= \case
                    then do advJob . f =<< manGetLatest' c
                            workOnJob
                    else return ()
-      Emit e m -> do
-        case permitted' i e ls of
-          Right () -> do enbatch e
-                         onRCI $ reportSuccess e
-                         -- liftIO $ putStrLn "Emit!"
-                         rci <- manRCIndex <$> get
-                         if checkBlock (getRCBlocker rci) e
-                            then resurrectFails
-                            else return ()
-                         advJob m
-                         workOnJob
+      Emit u m -> do
+        let e = u^.issued
+            cond = permitted' i (u^.issued) ls
+                   >> permitted' i (u^.produced) ls
+        case cond of
+          Right () -> do
+            r <- lift.use $ store.ress
+            -- Produce reservations.  The idea is to split whatever
+            -- has been produced among all known replica IDs
+            -- (including self).
+            let newRs = undefined
+                r' = produceRes i newRs r
+            case consumeRes i (u^.consumed) r' of
+              Just r'' -> do lift $ incorp' ress r''
+                             enbatch e
+                             onRCI $ reportSuccess e
+                             -- liftIO $ putStrLn "Emit!"
+                             rci <- manRCIndex <$> get
+                             if checkBlock (getRCBlocker rci) e
+                                then resurrectFails
+                                else return ()
+                             advJob m
+                             workOnJob
+              Nothing -> do onCurrent failJob
+                            -- Not sure if the reported conref here
+                            -- should be crT or crEqv, to avoid
+                            -- putting job to sleep forever.
+                            --
+                            -- Really, this should be reported as a
+                            -- different category of failure, so that
+                            -- the job can be woken up only when newly
+                            -- produced reservations show up.
+                            onRCI $ reportFailure crT j0
           Left c -> do onCurrent failJob
                        onRCI $ reportFailure c j0
       Finish m -> do 

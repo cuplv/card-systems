@@ -77,6 +77,23 @@ class (Eq (Ef s), Eq (Cr s), Ord (Ef s), Ord (Cr s)) => CARD s where
   collapseE :: Effect s -> Effect s
   collapseE = id
 
+  -- | Break an effect into n (or fewer) pieces, as equally-sized as
+  -- possible.  The default implementation simply returns a singleton
+  -- list with the original effect (or an empty list in case it was
+  -- the identity effect).
+  --
+  -- This function must follow the law that sequencing the resulting
+  -- effects must do the same thing that the original effect did.
+  -- 
+  -- > runEffect s e == runEffect s (foldr (|>>|) ef0 (partitionE n e))
+  -- 
+  -- This function's purpose is to support the site-escrow method of
+  -- dividing newly produced resources (represented by effects)
+  -- equally among replicas.
+  partitionE :: Int -> Effect s -> [Effect s]
+  partitionE _ e | e == ef0 = []
+  partitionE _ e = [e]
+
 newtype Effect s = Effect [Ef s] deriving (Generic)
 
 instance (Ord (Ef s)) => Semigroup (Effect s) where
@@ -221,6 +238,17 @@ instance CARD Counter where
     n | n == 0 -> Effect []
     n | n > 0 -> Effect [Add n]
     n | n < 0 -> Effect [Sub (-n)]
+
+  partitionE n e = case collapseE e of
+    Effect [Add m] -> case quotRem m n of
+      (0,x) -> [Effect [Add x]]
+      (m',x) -> (Effect [Add $ m' + x]) 
+                : replicate (n - 1) (Effect [Add m'])
+    Effect [Sub m] -> case quotRem m n of
+      (0,x) -> [Effect [Sub x]]
+      (m',x) -> (Effect [Sub $ m' + x]) 
+                : replicate (n - 1) (Effect [Sub m'])
+    Effect [] -> []
 
 ctrEffAmt (Effect es) =
   let f e a = case e of
