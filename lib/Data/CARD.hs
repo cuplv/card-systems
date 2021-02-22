@@ -12,7 +12,7 @@ module Data.CARD
   , Ef (..)
   , Cr (..)
   -- * Effects
-  , Effect
+  , Effect (Effect)
   , ef
   , ef0
   , (|<<|)

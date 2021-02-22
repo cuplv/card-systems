@@ -41,21 +41,33 @@ mkForm = newForm [ editTextField cfCommand CommandField (Just 1) ]
 
 type St e = (NetStat, (Counter,Ress'), Form CommandForm e Name)
 
-draw :: St e -> [Widget Name]
-draw (ns,(Counter b,r),f) = 
-  [C.vCenter $ C.hCenter form <=> C.hCenter store <=> C.hCenter status <=> C.hCenter resStore]
+draw :: String -> St e -> [Widget Name]
+draw i (ns,(Counter b,r),f) = 
+  [C.vCenter $ 
+   C.hCenter (Brick.str $ "[ node " ++ i ++ " ]")
+   <=> C.hCenter form
+   <=> C.hCenter store
+   <=> C.hCenter status
+   <=> C.hCenter resStore]
   where form = renderForm f
         store = Brick.str $ "Balance: $" <> (show b)
         status = Brick.str $ "Network status: " <> (show ns)
-        resStore = Brick.str $ "Res: " <> show r
+        resStore = Brick.str $ "Res: " <> prettyRes (resLookup i r)
+
+prettyRes :: [Effect Counter] -> String
+prettyRes ((Effect [Add n]) :es) = "+" ++ show n ++ " " ++ prettyRes es
+prettyRes ((Effect [Sub n]) :es) = "-" ++ show n ++ " " ++ prettyRes es
+prettyRes (e:es) = show e ++ " " ++ prettyRes es
+prettyRes [] = ""
 
 thd (_,_,a) = a
 
 app :: (CCarrier c Counter IO) 
-    => c
+    => String
+    -> c
     -> App (St CustomEvent) CustomEvent Name
-app cc = App 
-  { appDraw = draw
+app i cc = App 
+  { appDraw = draw i
   , appHandleEvent = \(ns,(c,r),f) ev -> case ev of
       VtyEvent (V.EvResize {}) -> continue (ns,(c,r),f)
       VtyEvent (V.EvKey V.KEsc []) -> halt (ns,(c,r),f)
@@ -97,13 +109,13 @@ mkUpdateChan = do
   chan <- newBChan 100
   return (chan, writeBChan chan . StoreUpdate, writeBChan chan GotMessage)
 
-runUi :: (CCarrier c Counter IO) => Counter -> c -> BChan CustomEvent -> IO ()
-runUi s0 conn chan = do
+runUi :: (CCarrier c Counter IO) => String -> Counter -> c -> BChan CustomEvent -> IO ()
+runUi nodeId s0 conn chan = do
   let buildVty = do
         v <- V.mkVty =<< V.standardIOConfig
         V.setMode (V.outputIface v) V.Mouse True
         return v
       f = (Offline, (s0,mempty), mkForm (CommandForm ""))
   vty0 <- buildVty
-  f' <- customMain vty0 buildVty (Just chan) (app conn) f
+  f' <- customMain vty0 buildVty (Just chan) (app nodeId conn) f
   return ()

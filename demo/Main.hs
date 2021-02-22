@@ -108,7 +108,7 @@ node = do
              let onUpdate' (v,s) = onUpdate (v,getRess s)
                  script i man = do 
                    initStore <- carol man $ queryT
-                   runUi initStore man eventChan
+                   runUi (nodeName conf) initStore man eventChan
                  settings = defaultDManagerSettings { onUpdate = onUpdate'
                                                     , onGetBroadcast = onMessage }
              runNode' settings script
