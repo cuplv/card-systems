@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Data.CARD.Res
   ( Ress
@@ -28,6 +29,8 @@ import Data.CARD
 data Ress i s = Ress
   { resStore :: Map (i,i,Int) (Maybe (Effect s))}
   deriving (Eq,Ord,Generic)
+
+deriving instance (CARD s, Show i, Show (Effect s)) => Show (Ress i s)
 
 type ResId i = (i,i,Int)
 
@@ -60,7 +63,7 @@ produceRes :: (Ord i, CARD s) => i -> [(i,Effect s)] -> Ress i s -> Ress i s
 produceRes i es (Ress m) =
   let n0 = highestSeqNum i (Map.keys m)
   in Ress $ foldr (\(n,(o,e)) a -> Map.insert (o,i,n) (Just e) a) 
-                  mempty
+                  m
                   (zip [(n0 + 1) ..] es)
 
 -- | Consume an effect from a reservation store.  The first argument
@@ -72,12 +75,13 @@ consumeRes :: (Ord i, CARD s)
   -> Effect s
   -> Ress i s
   -> Maybe (Ress i s)
+consumeRes _ e r | e == ef0 = Just r
 consumeRes i e (Ress m) =
   let fr ((k,Just e'):es) | k^.owner == i && e' == e = Just k
       fr (a:es) = fr es
       fr [] = Nothing
   in case fr (Map.assocs m) of
-       Just k -> Just (Ress (Map.delete k m))
+       Just k -> Just (Ress (Map.insert k Nothing m))
        Nothing -> Nothing
 
 -- | Look up effect reservations owned by a replica.

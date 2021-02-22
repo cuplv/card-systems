@@ -7,6 +7,7 @@ module Data.CARD.Store
   , locks
   , hist
   , ress
+  , getRess
   , histAppend
   -- * Convenient re-exports
   , module Data.CARD
@@ -61,6 +62,9 @@ hist = _1 . _2
 -- | Lens to the reservation store
 ress :: Lens' (Store c i s) (Ress i s)
 ress = _2
+
+getRess :: Store c i s -> Ress i s
+getRess = snd
 
 -- | Emit a store effect, tagged with a replica ID.
 histAppend :: (Ord i, CARD s, CvChain r c (i, Effect s) m) 

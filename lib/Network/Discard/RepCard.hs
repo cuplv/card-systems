@@ -462,9 +462,13 @@ workOnJob = manCurrentJob <$> get >>= \case
             r <- lift.use $ store.ress
             -- Produce reservations.  The idea is to split whatever
             -- has been produced among all known replica IDs
-            -- (including self).
-            let newRs = undefined
-                r' = produceRes i newRs r
+            -- (including self).  For the absolute simplest version,
+            -- we also want to "atomize" the reservations into unit
+            -- effects so that we can simply match them against
+            -- consumed unit effects.
+            let newRs = zip (i:others) (partitionE (length others + 1) (u^.produced))
+                newRs' = concat $ map (\(i,r) -> map ((,) i) (atomizeE r)) newRs
+                r' = produceRes i newRs' r
             case consumeRes i (u^.consumed) r' of
               Just r'' -> do lift $ incorp' ress r''
                              enbatch e
@@ -476,7 +480,8 @@ workOnJob = manCurrentJob <$> get >>= \case
                                 else return ()
                              advJob m
                              workOnJob
-              Nothing -> do onCurrent failJob
+              Nothing -> do liftIO $ putStrLn "Consume failed."
+                            onCurrent failJob
                             -- Not sure if the reported conref here
                             -- should be crT or crEqv, to avoid
                             -- putting job to sleep forever.

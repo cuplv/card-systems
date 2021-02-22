@@ -105,10 +105,11 @@ node = do
              runNode' settings script
 
      else do (eventChan, onUpdate, onMessage) <- mkUpdateChan
-             let script i man = do 
+             let onUpdate' (v,s) = onUpdate (v,getRess s)
+                 script i man = do 
                    initStore <- carol man $ queryT
                    runUi initStore man eventChan
-                 settings = defaultDManagerSettings { onValUpdate = onUpdate
+                 settings = defaultDManagerSettings { onUpdate = onUpdate'
                                                     , onGetBroadcast = onMessage }
              runNode' settings script
 

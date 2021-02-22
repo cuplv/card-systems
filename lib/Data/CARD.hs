@@ -94,6 +94,9 @@ class (Eq (Ef s), Eq (Cr s), Ord (Ef s), Ord (Cr s)) => CARD s where
   partitionE _ e | e == ef0 = []
   partitionE _ e = [e]
 
+  atomizeE :: Effect s -> [Effect s]
+  atomizeE (Effect es) = map (\e -> Effect [e]) es
+
 newtype Effect s = Effect [Ef s] deriving (Generic)
 
 instance (Ord (Ef s)) => Semigroup (Effect s) where
@@ -249,6 +252,11 @@ instance CARD Counter where
       (m',x) -> (Effect [Sub $ m' + x]) 
                 : replicate (n - 1) (Effect [Sub m'])
     Effect [] -> []
+
+  atomizeE e = case collapseE e of
+    Effect [Add n] -> Effect <$> (replicate n [Add 1])
+    Effect [Sub n] -> Effect <$> (replicate n [Sub 1])
+    e -> [e]
 
 ctrEffAmt (Effect es) =
   let f e a = case e of
