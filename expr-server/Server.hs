@@ -113,6 +113,10 @@ bankProfile = \case
   "withdraw" -> withdraw 1 >> return ()
   "current" -> current >> return ()
   "currentS" -> currentS >> return ()
+  "sellR" -> sellR >> return ()
+  "restockQR" -> restockQR 200 >> return ()
+  "sellQ" -> sellQ >> return ()
+  "restockQQ" -> restockQQ 200 >> return ()
 
 -- | For our experiments, we define infinity as 10 seconds.  (This
 -- means that operations which are cut off by the end of the

@@ -23,6 +23,7 @@ library
                      , Lang.Carol
                      , Lang.Carol.Internal
                      , Lang.Carol.Bank
+                     , Lang.Carol.Warehouse
                      , Network.Discard
                      , Network.Discard.Experiment
                      , Storage.Ipfs.Types
