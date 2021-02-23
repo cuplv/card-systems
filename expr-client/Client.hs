@@ -39,6 +39,7 @@ main = do
 data ClientConf i = ClientConf
   { clientNetConf :: FilePath
   , clientMix :: ([(Int,String)],String)
+  , clientMixSpecial :: ([(Int,String)],String)
   , clientRate :: Int
   , clientTime :: Int }
 
@@ -47,6 +48,7 @@ confCLI = execParser $
   let parser = ClientConf
         <$> strOption (short 'c' <> help "net conf filepath")
         <*> option auto (long "mix")
+        <*> option auto (long "special-mix" <> help "mix for a single \"special\" node to use")
         <*> option auto (long "rate" <> metavar "MICROSEC")
         <*> option auto (long "time" <> metavar "SEC")
       misc = (fullDesc <> progDesc "Run an experiment")

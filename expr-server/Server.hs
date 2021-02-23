@@ -21,6 +21,7 @@ import Data.Foldable (foldl')
 
 import Lang.Carol
 import Lang.Carol.Bank
+import Lang.Carol.Warehouse
 
 import Network.Discard.Experiment
 import Network.Discard
