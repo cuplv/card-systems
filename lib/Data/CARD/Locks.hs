@@ -125,10 +125,11 @@ permitted' :: (Ord i, CARD s)
   -> Locks i s
   -> Either (Conref s) ()
 permitted' i ce ie ls =
-  let blockers = map (\(_,c,_) -> c) 
-                 . filter (\(n,c,s) -> checkLe c ce ie && Set.member i s) 
-                 . Map.elems 
-                 . locks 
+  let blockers = map (\(_,c,_) -> c)
+                 . filter (\(n,c,s) -> not (checkLe c ce ie)
+                                       && Set.member i s)
+                 . Map.elems
+                 . locks
                  $ ls
   in case blockers of
        [] -> Right ()
