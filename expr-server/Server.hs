@@ -156,22 +156,22 @@ exp2Script econf i man = do
   startTime <- getCurrentTime
   let (sell,restock) = 
         if e2UseReservations econf
-           then (sellR, whenBelow (Counter $ e2WarehouseSize econf)
+           then (sellR, whenBelow (Counter $ e2WarehouseSize econf `div` 2)
                                   (restockQR (e2WarehouseSize econf)))
-           else (sellQ, whenBelow (Counter $ e2WarehouseSize econf)
+           else (sellQ, whenBelow (Counter $ e2WarehouseSize econf `div` 2)
                                   (restockQQ (e2WarehouseSize econf)))
       rc (n:ns) = do
         carolAsync man sell (\b -> if b
                                       then atomically $ modifyTVar' sales (+1)
-                                      else return ())
+                                      else putStrLn "<no stock>")
         -- (_,((lst,_),_)) <- readTVarIO $ latestState man
         -- print lst
+        curr :: Counter <- carol man queryT
+        putStrLn $ "Store now " ++ show curr
         if mod n 50 == 0 && e2Restocker econf
            then do putStrLn $ "Restocking... >" ++ show i
                    rst <- carol man restock
                    putStrLn $ "Added " ++ show rst
-                   curr :: Counter <- carol man queryT
-                   putStrLn $ "Store now " ++ show curr
            else return ()
         threadDelay (oneSec `div` e2Rate econf)
         tm <- getCurrentTime
