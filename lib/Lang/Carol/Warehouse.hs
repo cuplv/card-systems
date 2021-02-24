@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Lang.Carol.Warehouse
   ( -- * Using reservations and queries
     sellR
@@ -12,20 +14,20 @@ import Lang.Carol
 
 
 -- | Sell a unit, using a reservation for safety.
-sellR :: Carol Counter (Either String ())
+sellR :: Carol Counter Bool
 sellR = do
   let e = ef $ Sub 1
-  consume e
-  issue e
-  return (Right ())
+  consume e >>= \case
+    Just _ -> issue e >> return True
+    Nothing -> return False
 
 -- | Sell a unit, using a query for safety.
-sellQ :: Carol Counter (Either String ())
+sellQ :: Carol Counter Bool
 sellQ = do
   (Counter s) <- query (cr$ LEQ)
   if s >= 1
-     then issue (ef$ Sub 1) >> return (Right ())
-     else return (Left "No unit to sell.")
+     then issue (ef$ Sub 1) >> return True
+     else return False
 
 -- | Restock, producing reservations.
 restockQR :: Int -> Carol Counter Int

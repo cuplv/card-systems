@@ -47,22 +47,28 @@ import Network.Discard.RateControl
 import Network.Discard.Broadcast
 
 data Job s m a = 
-    -- | Issue the given effect
+    -- | Issue the given effect.
     Emit    (Update s) (     m (Job s m a))
-    -- | Request locks for the given conref
+    -- | Request locks for the given conref.
   | Request (Conref s) (s -> m (Job s m a))
-    -- | Return the value to the caller
+    -- | Return the value to the caller.
   | Finish             (     m a          )
+    -- | Try to consume the given effect, passing it along if
+    -- successful.
+  | TryConsume (Effect s) (Maybe (Effect s) -> m (Job s m a))
 
 handleQ' :: (Monad m, CARD s)
         => (r -> m a) -- ^ Return callback
         -> m s -- ^ Latest store ref
-        -> HelpMe (Conref s) s (r, Update s)
+        -> HelpMe (Conref s) (Effect s) s (r, Update s)
         -> m (Job s m a)
 handleQ' fin latest = \case
   HelpMe c f 
     | c == crT -> handleQ' fin latest . f =<< latest
     | otherwise -> return (Request c (handleQ' fin latest . f))
+  GiveMe e f
+    | e == ef0 -> handleQ' fin latest (f (Just ef0))
+    | otherwise -> return (TryConsume e (handleQ' fin latest . f))
   GotIt (r,u) 
     |    u^.issued == ef0 
       && u^.produced == ef0 
@@ -73,7 +79,7 @@ handleQ' fin latest = \case
 handleQM :: (CARD s)
          => (a -> IO ()) -- ^ Action to take on completion
          -> ManagerConn i r s -- ^ Manager to handle if necessary
-         -> HelpMe (Conref s) s (a, Update s)
+         -> HelpMe (Conref s) (Effect s) s (a, Update s)
          -> IO ()
 handleQM fin man h = handleQ' fin (getLatestVal man) h >>= \case
   Finish m -> m
@@ -81,7 +87,7 @@ handleQM fin man h = handleQ' fin (getLatestVal man) h >>= \case
 
 handleQR :: (CARD s)
          => ManagerConn i r s
-         -> HelpMe (Conref s) s (a, Update s)
+         -> HelpMe (Conref s) (Effect s) s (a, Update s)
          -> IO a
 handleQR man h = do
   tmv <- newEmptyTMVarIO
@@ -453,10 +459,19 @@ workOnJob = manCurrentJob <$> get >>= \case
                    then do advJob . f =<< manGetLatest' c
                            workOnJob
                    else return ()
+      TryConsume e f -> do
+        r <- lift.use $ store.ress
+        case consumeRes i e r of
+          Just r' -> do lift $ incorp' ress r'
+                        advJob (f $ Just e)
+          Nothing -> advJob (f Nothing)
+        workOnJob
       Emit u m -> do
         let e = u^.issued
-            cond = permitted' i (u^.issued) ls
-                   >> permitted' i (u^.produced) ls
+            cond = permitted' i 
+                              (u^.consumed) 
+                              ((u^.issued) |>>| (u^.produced)) 
+                              ls
         case cond of
           Right () -> do
             r <- lift.use $ store.ress
@@ -466,33 +481,30 @@ workOnJob = manCurrentJob <$> get >>= \case
             -- we also want to "atomize" the reservations into unit
             -- effects so that we can simply match them against
             -- consumed unit effects.
-            let newRs = zip (i:others) (partitionE (length others + 1) (u^.produced))
-                newRs' = concat $ map (\(i,r) -> map ((,) i) (atomizeE r)) newRs
+            let newRs = zip (i:others)
+                            (partitionE (length others + 1) (u^.produced))
+                newRs' = concat $ map (\(i,r) -> map ((,) i) (atomizeE r))
+                                      newRs
                 r' = produceRes i newRs' r
-            case consumeRes i (u^.consumed) r' of
-              Just r'' -> do lift $ incorp' ress r''
-                             enbatch e
-                             onRCI $ reportSuccess e
-                             -- liftIO $ putStrLn "Emit!"
-                             rci <- manRCIndex <$> get
-                             if checkBlock (getRCBlocker rci) e
-                                then resurrectFails
-                                else return ()
-                             advJob m
-                             workOnJob
-              Nothing -> do liftIO $ putStrLn "Consume failed."
-                            onCurrent failJob
-                            -- Not sure if the reported conref here
-                            -- should be crT or crEqv, to avoid
-                            -- putting job to sleep forever.
-                            --
-                            -- Really, this should be reported as a
-                            -- different category of failure, so that
-                            -- the job can be woken up only when newly
-                            -- produced reservations show up.
-                            onRCI $ reportFailure crT j0
-          Left c -> do onCurrent failJob
-                       onRCI $ reportFailure c j0
+
+            lift $ incorp' ress r'
+            enbatch e
+            onRCI $ reportSuccess e
+            rci <- manRCIndex <$> get
+            if checkBlock (getRCBlocker rci) e
+               then resurrectFails
+               else return ()
+            advJob m
+            workOnJob
+          Left c -> do
+            -- Return consumed reservations to local pool.  Note that
+            -- current version merges what might have before been
+            -- distinct reservations into a single effect.
+            r <- lift.use $ store.ress
+            lift $ incorp' ress (produceRes i [(i,u^.consumed)] r)
+
+            onCurrent failJob
+            onRCI $ reportFailure c j0
       Finish m -> do 
         -- Perform finishing callback
         liftIO m

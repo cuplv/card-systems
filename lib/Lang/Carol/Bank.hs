@@ -33,12 +33,14 @@ withdrawS n = withdraw n >>= \case
   other -> return other
 
 -- | Withdraw 1 using a reservation.
-withdrawR :: Carol Counter ()
+withdrawR :: Carol Counter Int
 withdrawR = do
   let e = ef $ Sub 1
-  consume e
-  issue e
-  return ()
+  -- If the consume succeeds, we issue the same effect.  Otherwise, we
+  -- issue nothing and return 0.
+  consume e >>= \case
+    Just _ -> issue e >> return 1
+    Nothing -> return 0
 
 current :: Carol Counter Int
 current = do (Counter s) <- query crT
