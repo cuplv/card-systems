@@ -152,9 +152,12 @@ exp2Script econf i man = do
   threadDelay (oneSec * 3) -- Wait 3s to make sure everyone is listening
   putStrLn "Starting requests..."
   startTime <- getCurrentTime
-  let (sell,restock) = if e2UseReservations econf
-                          then (sellR,restockQR (e2WarehouseSize econf))
-                          else (sellQ,restockQQ (e2WarehouseSize econf))
+  let (sell,restock) = 
+        if e2UseReservations econf
+           then (sellR, whenBelow (Counter $ e2WarehouseSize econf)
+                                  (restockQR (e2WarehouseSize econf)))
+           else (sellQ, whenBelow (Counter $ e2WarehouseSize econf)
+                                  (restockQQ (e2WarehouseSize econf)))
       rc (n:ns) = do
         carolAsync man sell (\b -> if b
                                       then atomically $ modifyTVar' sales (+1)
