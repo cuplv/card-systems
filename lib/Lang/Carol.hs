@@ -7,6 +7,7 @@ module Lang.Carol
   , consume
   , produce
   , assert
+  , whenBelow
 
     -- * Running Carol operations
   , CCarrier
@@ -28,3 +29,11 @@ assert :: Bool -- ^ Assert condition
 assert b s op = if b
                    then op
                    else return (Left s)
+
+-- | When store val is below given value, perform the given operation.
+whenBelow :: (CARD s, Ord s) => s -> Carol s a -> Carol s (Maybe a)
+whenBelow t op = do
+  s <- queryT
+  if s < t
+     then Just <$> op
+     else return Nothing

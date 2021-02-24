@@ -26,6 +26,7 @@ library
                      , Lang.Carol.Warehouse
                      , Network.Discard
                      , Network.Discard.Experiment
+                     , Network.Discard.Experiment2
                      , Storage.Ipfs.Types
                      , Storage.Ipfs.Turtle
                      , Storage.Ipfs.Http
