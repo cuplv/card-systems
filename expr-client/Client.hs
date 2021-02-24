@@ -72,7 +72,7 @@ conf1CLI =
 conf2CLI =
   let parser = Client2Conf
         <$> strOption (short 'c' <> help "net conf filepath")
-        <*> option auto (long "mix")
+        <*> option auto (long "size")
         <*> option auto (long "rate" <> metavar "MICROSEC")
         <*> option auto (long "time" <> metavar "SEC")
         <*> switch (long "res" <> help "use reservations")
@@ -101,7 +101,7 @@ runExperiment ec enc = do
           c -> print c >> die "Oops"
   exps <- traverse mkReq (zip cmds (Map.elems addrs))
   putStrLn "All nodes started experiment." >> hFlush stdout
-  threadDelay $ (getTime ec + 15) * 1000000
+  threadDelay $ (getTime ec + 20) * 1000000
   let getRes :: (Int,String) -> IO (Either ExpResult Exp2Result)
       getRes (n,addr) = do
         ireq <- parseRequest addr
@@ -125,7 +125,7 @@ runExperiment ec enc = do
       putStrLn $ "True rate: " ++ show (trueReqRate ec results) ++ " req/s"
       putStrLn $ "Avg latency: " ++ show (combinedAvgLatency results) ++ " s"
     (Right ec, Right results) -> do
-      error "Not yet implemented."
+      putStrLn $ "Total sales: " ++ show (e2TotalSales results)
 
 unLeft (Left a) = a
 unRight (Right a) = a

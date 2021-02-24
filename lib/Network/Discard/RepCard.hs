@@ -11,7 +11,7 @@ module Network.Discard.RepCard
   , runCarolM
   , runCarolR
   , ManC
-  , ManagerConn
+  , ManagerConn (..)
   , DManagerSettings (..)
   , initManager
   , defaultDManagerSettings

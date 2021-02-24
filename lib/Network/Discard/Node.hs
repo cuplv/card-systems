@@ -5,7 +5,7 @@
 
 module Network.Discard.Node
   ( Script
-  , ManagerConn
+  , ManagerConn (..)
   , DManagerSettings (..)
   , defaultDManagerSettings
   , defaultDManagerSettings'

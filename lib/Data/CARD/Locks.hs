@@ -15,7 +15,6 @@ module Data.CARD.Locks
   , grant
   , release
   -- * Examine the locks
-  , permitted
   , permitted'
   , requested
   , ungranted
@@ -42,6 +41,8 @@ import Data.CARD
 data Locks i s = Locks 
   { locks :: Map i (Int, Conref s, Set i) } 
   deriving (Eq,Ord,Generic)
+
+deriving instance (Show i, Show (Conref s)) => Show (Locks i s)
 
 instance (ToJSONKey i, ToJSON i, ToJSON (Cr s)) => ToJSON (Locks i s)
 instance (Ord i, FromJSONKey i, FromJSON i, Ord (Cr s), FromJSON (Cr s)) => FromJSON (Locks i s)
@@ -97,22 +98,22 @@ ungranted :: (Ord i, CARD s) => i -> Locks i s -> [(i,Conref s)]
 ungranted i (Locks m) = map (\(ir,(_,c,_)) -> (ir,c)) $ filter ug (Map.assocs m)
   where ug (ir,((_,c,s))) = i /= ir && not (i `Set.member` s) && c /= crT
 
--- | Check if effect is blocked by current locks (as compared to a
--- consumed effect)
-permitted :: (Ord i, CARD s) 
-  => i
-     -- | The consumed effect
-  -> Effect s
-     -- | The issued/produced effect
-  -> Effect s
-  -> Locks i s
-  -> Bool
-permitted i ce ie =
-  not
-  . or 
-  . map (\(n,c,s) -> checkLe c ce ie && Set.member i s)
-  . Map.elems
-  . locks
+-- -- | Check if effect is blocked by current locks (as compared to a
+-- -- consumed effect)
+-- permitted :: (Ord i, CARD s) 
+--   => i
+--      -- | The consumed effect
+--   -> Effect s
+--      -- | The issued/produced effect
+--   -> Effect s
+--   -> Locks i s
+--   -> Bool
+-- permitted i ce ie =
+--   not
+--   . or 
+--   . map (\(n,c,s) -> not (checkLe c ce ie) && Set.member i s)
+--   . Map.elems
+--   . locks
 
 -- | Check if effect is blocked by current locks, returning the
 -- blocking 'Conref' if so (as compared with consumed effect)

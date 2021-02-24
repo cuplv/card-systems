@@ -18,7 +18,8 @@ sellR :: Carol Counter Bool
 sellR = do
   let e = ef $ Sub 1
   consume e >>= \case
-    Just _ -> issue e >> return True
+    Just _ -> do issue e
+                 return True
     Nothing -> return False
 
 -- | Sell a unit, using a query for safety.
@@ -34,9 +35,8 @@ restockQR :: Int -> Carol Counter Int
 restockQR maxSpace = do
   n <- restockQQ maxSpace
   if n > 0
-     then produce (ef$ Sub n)
-     else return ()
-  return n
+     then produce (ef$ Sub n) >> return n
+     else return 0
 
 -- | Restock without producing reservations (so that units can be
 -- claimed using queries).
@@ -45,6 +45,5 @@ restockQQ maxSpace = do
   (Counter s) <- query (cr$ GEQ)
   let n = maxSpace - s
   if n > 0
-     then issue (ef$ Add n)
-     else return ()
-  return n
+     then issue (ef$ Add n) >> return n
+     else return 0

@@ -1,0 +1,3 @@
+cabal run discard-experiment-server -- --ipfs-port 5002 -p 27101 -i alpha &
+cabal run discard-experiment-server -- --ipfs-port 5002 -p 27102 -i beta &
+echo "Started servers in background on ports 27101 and 27102."

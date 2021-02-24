@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 import Network.HTTP.Types
 import Network.Wai
@@ -31,7 +32,7 @@ import Data.EventGraph.Ipfs
 
 ------------------------------------------------------------------------
 
-batchSize = 50 :: Int
+batchSize = 5 :: Int
 
 defaultBaseTimeout :: Int
 defaultBaseTimeout = 10000 -- 0.01s
@@ -93,7 +94,7 @@ startExp i ipfsAddr tsize lastv resultsv (ec,nc) = do
       Just _ -> return (Just (last + 1))
   let settings = defaultDManagerSettings { timeoutUnitSize = tsize
                                          , setBatchSize = batchSize
-                                         , baseStoreValue = Counter 100000 }
+                                         , baseStoreValue = Counter 0 }
   case mcurrent of
     Just current -> do
       atomically $ swapTVar lastv (Just current)
@@ -110,7 +111,7 @@ startExp i ipfsAddr tsize lastv resultsv (ec,nc) = do
         Right e2c -> do
           if e2Restocker e2c
              then putStrLn $ "Warehouse experiment (Restocker)"
-             else putStrLn $ "Warehosue experiment"
+             else putStrLn $ "Warehouse experiment"
           putStrLn $ "Res: " ++ show (e2UseReservations e2c)
           putStrLn $ "Time: " ++ show (e2Time e2c)
           putStrLn $ "Warehouse size: " ++ show (e2WarehouseSize e2c)
@@ -145,10 +146,11 @@ stamp n q = do tm <- getCurrentTime
 timeConv = fromRational.toRational
 
 expScript' (Left e1c) = expScript e1c
+expScript' (Right e2c) = exp2Script e2c
 
 exp2Script :: Exp2Conf -> Script (IpfsEG i) c String Counter (Either a Exp2Result)
 exp2Script econf i man = do
-  sales <- newTVarIO 0 :: IO (TVar Int)
+  sales <- newTVarIO 1 :: IO (TVar Int)
   threadDelay (oneSec * 3) -- Wait 3s to make sure everyone is listening
   putStrLn "Starting requests..."
   startTime <- getCurrentTime
@@ -162,8 +164,14 @@ exp2Script econf i man = do
         carolAsync man sell (\b -> if b
                                       then atomically $ modifyTVar' sales (+1)
                                       else return ())
+        -- (_,((lst,_),_)) <- readTVarIO $ latestState man
+        -- print lst
         if mod n 50 == 0 && e2Restocker econf
-           then carolAsync' man restock
+           then do putStrLn $ "Restocking... >" ++ show i
+                   rst <- carol man restock
+                   putStrLn $ "Added " ++ show rst
+                   curr :: Counter <- carol man queryT
+                   putStrLn $ "Store now " ++ show curr
            else return ()
         threadDelay (oneSec `div` e2Rate econf)
         tm <- getCurrentTime
@@ -245,8 +253,10 @@ cmdGetter _ hl hr request respond = do
   case decode body of
     Just (Launch ec nc) -> hl (ec,nc) >>= \case
       Just n -> respond $ responseLBS status200 [] (BC.pack $ show n)
-      Nothing -> respond $ responseLBS status503 [] "Experiment in progress"
+      Nothing -> do putStrLn "503 in progress"
+                    respond $ responseLBS status503 [] "Experiment in progress"
     Just (Report n) -> hr n >>= \case
       Just results -> respond $ responseLBS status200 [] (encode results)
-      Nothing -> respond $ responseLBS status503 [] "Experiment not completed"
+      Nothing -> do putStrLn "503 not completed"
+                    respond $ responseLBS status503 [] "Experiment not completed"
     Nothing -> respond $ responseLBS status400 [] "No parse"
