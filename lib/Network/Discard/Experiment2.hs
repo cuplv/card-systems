@@ -5,6 +5,7 @@ module Network.Discard.Experiment2
   ( Exp2Conf (..)
   , Exp2Result (..)
   , ExpCmd (..)
+  , getTime
   ) where
 
 import GHC.Generics
@@ -39,6 +40,12 @@ instance ToJSON Exp2Result where
   toEncoding = genericToEncoding defaultOptions
 instance FromJSON Exp2Result
 
+instance Semigroup Exp2Result where
+  Exp2Result n <> Exp2Result m = Exp2Result (n + m)
+
+instance Monoid Exp2Result where
+  mempty = Exp2Result 0
+
 data ExpCmd i = Launch (Either ExpConf Exp2Conf) (NetConf i)
               | Report Int
               deriving (Eq,Ord,Show,Generic)
@@ -46,3 +53,6 @@ data ExpCmd i = Launch (Either ExpConf Exp2Conf) (NetConf i)
 instance (ToJSON i) => ToJSON (ExpCmd i) where
   toEncoding = genericToEncoding defaultOptions
 instance (Ord i, FromJSON i) => FromJSON (ExpCmd i)
+
+getTime (Right e) = e2Time e
+getTime (Left e) = expTime e

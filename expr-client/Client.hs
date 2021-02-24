@@ -24,27 +24,43 @@ import Lang.Carol
 import Lang.Carol.Bank
 import Network.Discard
 import Network.Discard.Experiment
+import Network.Discard.Experiment2
 import Data.EventGraph.Ipfs
 
 main :: IO ()
 main = do 
-  conf <- confCLI
+  conf <- execParser (info (subparser (command "latency" conf1CLI 
+                                       <> command "stock" conf2CLI)
+                            <**> helper) (fullDesc <> progDesc "Experiment client"))
   net <- decodeFileEither (clientNetConf conf) >>= \case
     Right net -> return net
     Left _ -> die "Could not read net conf file"
-  runExperiment 
-    (ExpConf (clientRate conf) "asdf" (uncurry Mix (clientMix conf)) (clientTime conf))
-    net
+  case conf of
+    Client1Conf _ _ _ _ -> runExperiment 
+                             (Left $ ExpConf (clientRate conf) "asdf" (uncurry Mix (clientMix conf)) (clientTime conf))
+                             net
+    Client2Conf _ _ _ _ _ -> runExperiment
+                              (Right $ Exp2Conf (clientUseRes conf) (clientTime conf) False (clientWarehouseSize conf) (clientRate conf))
+                              net
 
-data ClientConf i = ClientConf
-  { clientNetConf :: FilePath
-  , clientMix :: ([(Int,String)],String)
-  , clientRate :: Int
-  , clientTime :: Int }
+data ClientConf i = 
+    Client1Conf
+      { clientNetConf :: FilePath
+      , clientMix :: ([(Int,String)],String)
+      , clientRate :: Int
+      , clientTime :: Int
+      }
+  | Client2Conf
+      { clientNetConf :: FilePath
+      , clientWarehouseSize :: Int
+      , clientRate :: Int
+      , clientTime :: Int
+      , clientUseRes :: Bool
+      }
 
-confCLI :: IO (ClientConf String)
-confCLI = execParser $
-  let parser = ClientConf
+-- conf1CLI :: IO (ClientConf String)
+conf1CLI =
+  let parser = Client1Conf
         <$> strOption (short 'c' <> help "net conf filepath")
         <*> option auto (long "mix")
         <*> option auto (long "rate" <> metavar "MICROSEC")
@@ -52,14 +68,30 @@ confCLI = execParser $
       misc = (fullDesc <> progDesc "Run an experiment")
   in info (parser <**> helper) misc
 
-runExperiment :: ExpConf -> ExpNetConf String -> IO ()
+-- conf2CLI :: IO (ClientConf String)
+conf2CLI =
+  let parser = Client2Conf
+        <$> strOption (short 'c' <> help "net conf filepath")
+        <*> option auto (long "mix")
+        <*> option auto (long "rate" <> metavar "MICROSEC")
+        <*> option auto (long "time" <> metavar "SEC")
+        <*> switch (long "res" <> help "use reservations")
+      misc = (fullDesc <> progDesc "Run an experiment")
+  in info (parser <**> helper) misc
+
+runExperiment :: Either ExpConf Exp2Conf -> ExpNetConf String -> IO ()
 runExperiment ec enc = do
   let nc = getNetConf enc
       addrs = expAddrs enc
-      cmd = Launch (divRate enc ec) nc
+      -- cmd = Launch (divRate enc ec) nc
+      cmd = undefined
+      cmds = case ec of
+               Left e1c -> repeat $ Launch (Left $ divRate enc e1c) nc
+               Right e2c -> Launch (Right $ e2c { e2Restocker = True }) nc 
+                            : repeat (Launch (Right $ e2c { e2Restocker = False }) nc)
   man <- newManager defaultManagerSettings
-  let mkReq :: String -> IO (Int,String)
-      mkReq addr = do
+  let mkReq :: (ExpCmd String,String) -> IO (Int,String)
+      mkReq (cmd,addr) = do
         ireq <- parseRequest addr
         let req = ireq { requestBody = RequestBodyLBS $ encode cmd }
         resp <- httpLbs req man
@@ -67,10 +99,10 @@ runExperiment ec enc = do
           c | c == status200 -> case decode (responseBody resp) of
                                   Just n -> return (n,addr)
           c -> print c >> die "Oops"
-  exps <- traverse mkReq addrs
+  exps <- traverse mkReq (zip cmds (Map.elems addrs))
   putStrLn "All nodes started experiment." >> hFlush stdout
-  threadDelay $ (expTime ec + 15) * 1000000
-  let getRes :: (Int,String) -> IO ExpResult
+  threadDelay $ (getTime ec + 15) * 1000000
+  let getRes :: (Int,String) -> IO (Either ExpResult Exp2Result)
       getRes (n,addr) = do
         ireq <- parseRequest addr
         let req = ireq { requestBody = RequestBodyLBS $ encode (Report n :: ExpCmd String) }
@@ -79,12 +111,21 @@ runExperiment ec enc = do
           c | c == status200 -> case decode (responseBody resp) of
                                   Just d -> return d
             | otherwise -> print c >> die "Oops"
-  results <- fold <$> traverse getRes exps
-  putStrLn $ "* Individual latencies"
-  mapM_ (\(s,l) -> putStrLn $ s ++ ": " ++ show l ++ " s") (Map.assocs (expAvgLatencies results))
-  putStrLn $ "* Failures"
-  print $ expUnfinished results
-  putStrLn $ "* Total measures"
-  putStrLn $ "Total requests: " ++ show (totalReqs results) ++ " req"
-  putStrLn $ "True rate: " ++ show (trueReqRate ec results) ++ " req/s"
-  putStrLn $ "Avg latency: " ++ show (combinedAvgLatency results) ++ " s"
+  results <- case ec of
+    Left _ -> Left . fold . map unLeft <$> traverse getRes exps
+    Right _ -> Right . fold . map unRight <$> traverse getRes exps
+  case (ec,results) of
+    (Left ec,Left results) -> do
+      putStrLn $ "* Individual latencies"
+      mapM_ (\(s,l) -> putStrLn $ s ++ ": " ++ show l ++ " s") (Map.assocs (expAvgLatencies results))
+      putStrLn $ "* Failures"
+      print $ expUnfinished results
+      putStrLn $ "* Total measures"
+      putStrLn $ "Total requests: " ++ show (totalReqs results) ++ " req"
+      putStrLn $ "True rate: " ++ show (trueReqRate ec results) ++ " req/s"
+      putStrLn $ "Avg latency: " ++ show (combinedAvgLatency results) ++ " s"
+    (Right ec, Right results) -> do
+      error "Not yet implemented."
+
+unLeft (Left a) = a
+unRight (Right a) = a
