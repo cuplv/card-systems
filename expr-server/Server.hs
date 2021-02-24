@@ -24,6 +24,7 @@ import Lang.Carol.Bank
 import Lang.Carol.Warehouse
 
 import Network.Discard.Experiment
+import Network.Discard.Experiment2
 import Network.Discard
 import Data.EventGraph
 import Data.EventGraph.Ipfs
@@ -81,8 +82,8 @@ startExp :: String -- ^ Node name
          -> String -- ^ IPFS API address
          -> Int -- ^ Base timeout (microseconds)
          -> TVar (Maybe Int)
-         -> TVar (Map Int ExpResult) 
-         -> (ExpConf, NetConf String) 
+         -> TVar (Map Int (Either ExpResult Exp2Result)) 
+         -> (Either ExpConf Exp2Conf, NetConf String) 
          -> IO (Maybe Int)
 startExp i ipfsAddr tsize lastv resultsv (ec,nc) = do
   mcurrent <- atomically (readTVar lastv) >>= \case
@@ -98,12 +99,21 @@ startExp i ipfsAddr tsize lastv resultsv (ec,nc) = do
       atomically $ swapTVar lastv (Just current)
       -- Start the experiment
       forkIO $ do 
-        results <- runNode i ipfsAddr nc settings (expScript ec)
+        results <- runNode i ipfsAddr nc settings (expScript' ec)
         atomically $ modifyTVar resultsv (Map.insert current results)
         putStrLn $ "Finished experiment " ++ show current
       putStrLn $ "Started experiment " ++ show current
-      putStrLn $ "Time: " ++ show (expTime ec) ++ " s"
-      putStrLn $ "Rate: " ++ show (expRate ec) ++ " req/s"
+      case ec of
+        Left e1c -> do
+          putStrLn $ "Time: " ++ show (expTime e1c) ++ " s"
+          putStrLn $ "Rate: " ++ show (expRate e1c) ++ " req/s"
+        Right e2c -> do
+          if e2Restocker e2c
+             then putStrLn $ "Warehouse experiment (Restocker)"
+             else putStrLn $ "Warehosue experiment"
+          putStrLn $ "Res: " ++ show (e2UseReservations e2c)
+          putStrLn $ "Time: " ++ show (e2Time e2c)
+          putStrLn $ "Warehouse size: " ++ show (e2WarehouseSize e2c)
   return mcurrent
 
 
@@ -134,7 +144,35 @@ stamp n q = do tm <- getCurrentTime
 
 timeConv = fromRational.toRational
 
-expScript :: ExpConf -> Script (IpfsEG i) c String Counter ExpResult
+expScript' (Left e1c) = expScript e1c
+
+exp2Script :: Exp2Conf -> Script (IpfsEG i) c String Counter (Either a Exp2Result)
+exp2Script econf i man = do
+  sales <- newTVarIO 0 :: IO (TVar Int)
+  threadDelay (oneSec * 3) -- Wait 3s to make sure everyone is listening
+  putStrLn "Starting requests..."
+  startTime <- getCurrentTime
+  let (sell,restock) = if e2UseReservations econf
+                          then (sellR,restockQR (e2WarehouseSize econf))
+                          else (sellQ,restockQQ (e2WarehouseSize econf))
+      rc (n:ns) = do
+        carolAsync man sell (\b -> if b
+                                      then atomically $ modifyTVar' sales (+1)
+                                      else return ())
+        if mod n 50 == 0 && e2Restocker econf
+           then carolAsync' man restock
+           else return ()
+        threadDelay (oneSec `div` e2Rate econf)
+        tm <- getCurrentTime
+        if diffUTCTime tm startTime < timeConv (e2Time econf)
+           then rc ns
+           else return ()
+  rc [0..]
+  putStrLn "Finished requests, waiting for stragglers..."
+  threadDelay (oneSec * 10) -- Wait 10s to let everyone finish
+  Right . Exp2Result <$> readTVarIO sales
+
+expScript :: ExpConf -> Script (IpfsEG i) c String Counter (Either ExpResult a)
 expScript econf i man = do
   startQ <- newTQueueIO :: IO (TQueue ((Int,String),UTCTime))
   endQ <- newTQueueIO :: IO (TQueue (Int,UTCTime))
@@ -156,7 +194,7 @@ expScript econf i man = do
   rc startTime reqs
   putStrLn "Finished requests, waiting for stragglers..."
   threadDelay (oneSec * 10) -- Wait 10s to let everyone finish
-  collectData startQ endQ
+  Left <$> collectData startQ endQ
 
 collectData :: TQueue ((Int,String),UTCTime)
             -> TQueue (Int,UTCTime) 
@@ -191,13 +229,13 @@ collectData startQ endQ = do
   return (ExpResult mLats mCounts mUnfinished)
 
 
-resultsExp :: TVar (Map Int ExpResult) -> Int -> IO (Maybe ExpResult)
+resultsExp :: TVar (Map Int (Either ExpResult Exp2Result)) -> Int -> IO (Maybe (Either ExpResult Exp2Result))
 resultsExp resultsv n = Map.lookup n <$> readTVarIO resultsv
 
 cmdGetter :: (Ord i, ToJSON i, FromJSON i) 
           => i
-          -> ((ExpConf, NetConf i) -> IO (Maybe Int))
-          -> (Int -> IO (Maybe ExpResult))
+          -> ((Either ExpConf Exp2Conf, NetConf i) -> IO (Maybe Int))
+          -> (Int -> IO (Maybe (Either ExpResult Exp2Result)))
           -> Application
 cmdGetter _ hl hr request respond = do
   body <- strictRequestBody request

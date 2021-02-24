@@ -11,7 +11,6 @@ module Network.Discard.Experiment
   , Mix (..)
   , Profile
   , chooseOp
-  , ExpCmd (..)
   , ExpResult (..)
   , totalLats
   , emptyResults
@@ -64,14 +63,6 @@ chooseOp prf (Mix ns df) n =
                                       then s'
                                       else s) df ns
   in (opStr, prf opStr)
-
-data ExpCmd i = Launch ExpConf (NetConf i)
-              | Report Int
-              deriving (Eq,Ord,Show,Generic)
-
-instance (ToJSON i) => ToJSON (ExpCmd i) where
-  toEncoding = genericToEncoding defaultOptions
-instance (Ord i, FromJSON i) => FromJSON (ExpCmd i)
 
 data ExpResult = ExpResult 
   { expAvgLatencies :: Map String NominalDiffTime
