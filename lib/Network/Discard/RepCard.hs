@@ -483,11 +483,10 @@ workOnJob = manCurrentJob <$> get >>= \case
             -- consumed unit effects.
             let newRs = zip (i:others)
                             (partitionE (length others + 1) (u^.produced))
-                newRs' = concat $ map (\(i,r) -> map ((,) i) (atomizeE r))
-                                      newRs
-                r' = produceRes i newRs' r
+                r' = produceRes i newRs r
 
             lift $ incorp' ress r'
+            -- liftIO $ putStrLn "Got past produce"
             enbatch e
             onRCI $ reportSuccess e
             rci <- manRCIndex <$> get

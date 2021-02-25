@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+-- {-# LANGUAGE ScopedTypeVariables #-}
 
 import Network.HTTP.Types
 import Network.Wai
@@ -164,10 +164,10 @@ exp2Script econf i man = do
         carolAsync man sell (\b -> if b
                                       then atomically $ modifyTVar' sales (+1)
                                       else putStrLn "<no stock>")
-        -- (_,((lst,_),_)) <- readTVarIO $ latestState man
-        -- print lst
-        curr :: Counter <- carol man queryT
-        putStrLn $ "Store now " ++ show curr
+        -- (_,((lst,_),ress)) <- readTVarIO $ latestState man
+        -- print ress
+        -- curr :: Counter <- carol man queryT
+        -- putStrLn $ "Store now " ++ show curr
         if mod n 50 == 0 && e2Restocker econf
            then do putStrLn $ "Restocking... >" ++ show i
                    rst <- carol man restock
