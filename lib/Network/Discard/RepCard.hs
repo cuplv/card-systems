@@ -481,11 +481,14 @@ workOnJob = manCurrentJob <$> get >>= \case
             -- we also want to "atomize" the reservations into unit
             -- effects so that we can simply match them against
             -- consumed unit effects.
-            let newRs = zip (i:others)
-                            (partitionE (length others + 1) (u^.produced))
-                r' = produceRes i newRs r
-
-            lift $ incorp' ress r'
+            if (u^.produced) /= ef0
+               then let newRs = zip (i:others)
+                                    (partitionE
+                                       (length others + 1)
+                                       (u^.produced))
+                        r' = produceRes i newRs r
+                    in lift $ incorp' ress r' >> return ()
+               else return ()
             -- liftIO $ putStrLn "Got past produce"
             enbatch e
             onRCI $ reportSuccess e
@@ -499,9 +502,11 @@ workOnJob = manCurrentJob <$> get >>= \case
             -- Return consumed reservations to local pool.  Note that
             -- current version merges what might have before been
             -- distinct reservations into a single effect.
-            r <- lift.use $ store.ress
-            lift $ incorp' ress (produceRes i [(i,u^.consumed)] r)
-
+            if (u^.consumed) /= ef0
+               then do r <- lift.use $ store.ress
+                       lift $ incorp' ress (produceRes i [(i,u^.consumed)] r)
+                       return ()
+               else return ()
             onCurrent failJob
             onRCI $ reportFailure c j0
       Finish m -> do 

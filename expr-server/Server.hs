@@ -170,8 +170,7 @@ exp2Script econf i man = do
         -- putStrLn $ "Store now " ++ show curr
         if mod n 50 == 0 && e2Restocker econf
            then do putStrLn $ "Restocking... >" ++ show i
-                   rst <- carol man restock
-                   putStrLn $ "Added " ++ show rst
+                   carolAsync' man restock
            else return ()
         threadDelay (oneSec `div` e2Rate econf)
         tm <- getCurrentTime
