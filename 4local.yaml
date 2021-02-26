@@ -1,0 +1,19 @@
+- name: de-server0
+  port: 27001
+  host: 172.20.0.5
+  expPort: 24001
+
+- name: de-server1
+  port: 27001
+  host: 172.20.0.6
+  expPort: 24001
+
+- name: de-server2
+  port: 27001
+  host: 172.20.0.7
+  expPort: 24001
+
+- name: de-server3
+  port: 27001
+  host: 172.20.0.8
+  expPort: 24001
