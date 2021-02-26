@@ -119,10 +119,8 @@ ungranted i (Locks m) = map (\(ir,(_,c,_)) -> (ir,c)) $ filter ug (Map.assocs m)
 -- blocking 'Conref' if so (as compared with consumed effect)
 permitted' :: (Ord i, CARD s)
   => i
-     -- | The consumed effect
-  -> Effect s
-     -- | The issued/produced effect
-  -> Effect s
+  -> Effect s -- ^ The consumed effect
+  -> Effect s -- ^ The issued/produced effect
   -> Locks i s
   -> Either (Conref s) ()
 permitted' i ce ie ls =
