@@ -150,7 +150,7 @@ expScript' (Right e2c) = exp2Script e2c
 
 exp2Script :: Exp2Conf -> Script (IpfsEG i) c String Counter (Either a Exp2Result)
 exp2Script econf i man = do
-  sales <- newTVarIO 1 :: IO (TVar Int)
+  sales <- newTVarIO 0 :: IO (TVar Int)
   threadDelay (oneSec * 3) -- Wait 3s to make sure everyone is listening
   putStrLn "Starting requests..."
   startTime <- getCurrentTime
