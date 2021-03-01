@@ -36,12 +36,12 @@ main = do
     Right net -> return net
     Left _ -> die "Could not read net conf file"
   case conf of
-    Client1Conf _ _ _ _ -> runExperiment 
-                             (Left $ ExpConf (clientRate conf) "asdf" (uncurry Mix (clientMix conf)) (clientTime conf))
-                             net
-    Client2Conf _ _ _ _ _ -> runExperiment
-                              (Right $ Exp2Conf (clientUseRes conf) (clientTime conf) False (clientWarehouseSize conf) (clientRate conf))
-                              net
+    Client1Conf _ _ _ _ _ -> runExperiment 
+                               (Left $ ExpConf (clientRate conf) "asdf" (uncurry Mix (clientMix conf)) (clientTime conf) (clientBatchSize conf))
+                               net
+    Client2Conf _ _ _ _ _ _ -> runExperiment
+                                (Right $ Exp2Conf (clientUseRes conf) (clientTime conf) False (clientWarehouseSize conf) (clientRate conf) (clientBatchSize conf))
+                                net
 
 data ClientConf i = 
     Client1Conf
@@ -49,6 +49,7 @@ data ClientConf i =
       , clientMix :: ([(Int,String)],String)
       , clientRate :: Int
       , clientTime :: Int
+      , clientBatchSize :: Int
       }
   | Client2Conf
       { clientNetConf :: FilePath
@@ -56,27 +57,30 @@ data ClientConf i =
       , clientRate :: Int
       , clientTime :: Int
       , clientUseRes :: Bool
+      , clientBatchSize :: Int
       }
 
 -- conf1CLI :: IO (ClientConf String)
 conf1CLI =
   let parser = Client1Conf
         <$> strOption (short 'c' <> help "net conf filepath")
-        <*> option auto (long "mix")
+        <*> option auto (long "mix" <> help "operation mix to use")
         <*> option auto (long "rate" <> metavar "MICROSEC")
         <*> option auto (long "time" <> metavar "SEC")
-      misc = (fullDesc <> progDesc "Run an experiment")
+        <*> option auto (long "batch-size" <> metavar "OPS" <> help "number of ops to batch before broadcast" <> value defaultBatchSize)
+      misc = (fullDesc <> progDesc "Run latency experiment, measuring average op latency")
   in info (parser <**> helper) misc
 
 -- conf2CLI :: IO (ClientConf String)
 conf2CLI =
   let parser = Client2Conf
         <$> strOption (short 'c' <> help "net conf filepath")
-        <*> option auto (long "size")
-        <*> option auto (long "rate" <> metavar "MICROSEC")
-        <*> option auto (long "time" <> metavar "SEC")
+        <*> option auto (long "size" <> metavar "NUM" <> help "warehouse capacity")
+        <*> option auto (long "rate" <> metavar "OPS" <> help "op/s to attempt")
+        <*> option auto (long "time" <> metavar "SECS" <> help "length to run experiment")
         <*> switch (long "res" <> help "use reservations")
-      misc = (fullDesc <> progDesc "Run an experiment")
+        <*> option auto (long "batch-size" <> metavar "OPS" <> help "number of ops to batch before broadcast" <> value defaultBatchSize)
+      misc = (fullDesc <> progDesc "Run stock experiment, counting total successful sales")
   in info (parser <**> helper) misc
 
 runExperiment :: Either ExpConf Exp2Conf -> ExpNetConf String -> IO ()

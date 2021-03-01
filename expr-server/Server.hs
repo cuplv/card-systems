@@ -32,7 +32,7 @@ import Data.EventGraph.Ipfs
 
 ------------------------------------------------------------------------
 
-batchSize = 5 :: Int
+-- batchSize = 5 :: Int
 
 defaultBaseTimeout :: Int
 defaultBaseTimeout = 10000 -- 0.01s
@@ -93,7 +93,7 @@ startExp i ipfsAddr tsize lastv resultsv (ec,nc) = do
       Nothing -> return Nothing
       Just _ -> return (Just (last + 1))
   let settings = defaultDManagerSettings { timeoutUnitSize = tsize
-                                         , setBatchSize = batchSize
+                                         , setBatchSize = getBatchSize ec
                                          , baseStoreValue = Counter 0 }
   case mcurrent of
     Just current -> do

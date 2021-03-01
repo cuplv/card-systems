@@ -6,6 +6,7 @@ module Network.Discard.Experiment2
   , Exp2Result (..)
   , ExpCmd (..)
   , getTime
+  , getBatchSize
   ) where
 
 import GHC.Generics
@@ -19,12 +20,16 @@ import Lang.Carol
 import Network.Discard.Broadcast
 import Network.Discard.Experiment
 
+getBatchSize (Left e) = expBatchSize e
+getBatchSize (Right e) = e2BatchSize e
+
 data Exp2Conf = Exp2Conf
   { e2UseReservations :: Bool
   , e2Time :: Int
   , e2Restocker :: Bool
   , e2WarehouseSize :: Int
   , e2Rate :: Int
+  , e2BatchSize :: Int
   }
   deriving (Eq,Ord,Show,Generic)
 
