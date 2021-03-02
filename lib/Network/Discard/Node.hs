@@ -48,7 +48,7 @@ type Script r c i s a =
 
 -- | Run a replica node, explicitly providing an initial state.  Make
 -- sure the initial store value matches the initial store history!
-runNode' :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i, ToJSONKey i, ToJSON (Cr s), ToJSON (Ef s), FromJSONKey i, FromJSON i, FromJSON (Cr s), FromJSON (Ef s), FromJSON (c (i, Effect s)), c ~ Edge (IpfsEG i))
+runNode' :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i, ToJSONKey i, ToJSONKey (Cr s), ToJSON (Cr s), ToJSON (Ef s), FromJSONKey i, FromJSON i, FromJSONKey (Cr s), FromJSON (Cr s), FromJSON (Ef s), FromJSON (c (i, Effect s)), c ~ Edge (IpfsEG i))
          => i  -- ^ Name
          -> String -- ^ IPFS API URI
          -> NetConf i -- ^ Replica network
@@ -79,7 +79,7 @@ runNode' i ipfsAddr net val0 store0 dmsets script = do
 -- and background threads killed.  The node will start with an empty
 -- history and will be brought up-to-date by broadcasts from the
 -- network.
-runNode :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i, ToJSONKey i, ToJSON (Cr s), ToJSON (Ef s), FromJSONKey i, FromJSON i, FromJSON (Cr s), FromJSON (Ef s), FromJSON (c (i, Effect s)), c ~ Edge (IpfsEG i))
+runNode :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i, ToJSONKey i, ToJSONKey (Cr s), ToJSON (Cr s), ToJSON (Ef s), FromJSONKey i, FromJSON i, FromJSONKey (Cr s), FromJSON (Cr s), FromJSON (Ef s), FromJSON (c (i, Effect s)), c ~ Edge (IpfsEG i))
         => i -- ^ name
         -> String -- ^ IPFS API URI
         -> NetConf i -- ^ Replica network
@@ -94,7 +94,7 @@ runNode i ipfsAddr net dmsets script =
 -- | Run a node, loading the initial state from the given file (if it
 -- exists) and writing the final state to the file on exit (creating
 -- it if it does not exist).
-runNodeFile :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i, ToJSONKey i, ToJSON (Cr s), ToJSON (Ef s), FromJSONKey i, FromJSON i, FromJSON (Cr s), FromJSON (Ef s), FromJSON (c (i, Effect s)), c ~ Edge (IpfsEG i), FromJSON s, ToJSON s)
+runNodeFile :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i, ToJSONKey i, ToJSONKey (Cr s), ToJSON (Cr s), ToJSON (Ef s), FromJSONKey i, FromJSON i, FromJSONKey (Cr s), FromJSON (Cr s), FromJSON (Ef s), FromJSON (c (i, Effect s)), c ~ Edge (IpfsEG i), FromJSON s, ToJSON s)
             => i -- ^ Name
             -> String -- ^ IPFS API address
             -> NetConf i -- ^ Replica network

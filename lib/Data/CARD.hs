@@ -19,7 +19,7 @@ module Data.CARD
   , (|>>|)
   , runEffect
   -- * Consistency refinements
-  , Conref
+  , Conref (Conref)
   , cr
   , crT
   , crEqv
@@ -273,6 +273,8 @@ instance FromJSON (Ef Counter)
 instance ToJSON (Cr Counter) where
   toEncoding = genericToEncoding defaultOptions
 instance FromJSON (Cr Counter)
+instance ToJSONKey (Cr Counter)
+instance FromJSONKey (Cr Counter)
 
 newtype RGArray a = RGArray [a] deriving (Show,Read,Eq,Ord,Generic)
 
