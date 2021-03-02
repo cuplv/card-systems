@@ -97,6 +97,9 @@ class (Eq (Ef s), Eq (Cr s), Ord (Ef s), Ord (Cr s)) => CARD s where
   atomizeE :: Effect s -> [Effect s]
   atomizeE (Effect es) = map (\e -> Effect [e]) es
 
+  enumConrefs :: [Cr s]
+  enumConrefs = []
+
 newtype Effect s = Effect [Ef s] deriving (Generic)
 
 instance (Ord (Ef s)) => Semigroup (Effect s) where
@@ -257,6 +260,8 @@ instance CARD Counter where
     Effect [Add n] -> Effect <$> (replicate n [Add 1])
     Effect [Sub n] -> Effect <$> (replicate n [Sub 1])
     e -> [e]
+
+  enumConrefs = [LEQ,GEQ]
 
 ctrEffAmt (Effect es) =
   let f e a = case e of

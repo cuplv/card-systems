@@ -10,6 +10,9 @@
 
 module Data.CARD.Locks
   ( Locks
+  -- * Create locks
+  , initTokens
+  , initLocks
   -- * Modify the locks
   , request
   , grant
@@ -60,9 +63,12 @@ initToken i = Token 0 i (Just (Set.singleton i)) mempty
 -- | Either pass token to next owner, or release lock
 passToken :: (Ord i) => Token i -> Token i
 passToken t@(Token n i s rs) =
-  case nextId i rs of
-    Just i' -> Token (n + 1) i' s (Set.delete i' rs)
-    Nothing -> Token n i Nothing rs
+  let s' = case s of
+             Just ss -> Just ss
+             Nothing -> Just (Set.singleton i)
+  in case nextId i rs of
+       Just i' -> Token (n + 1) i' s' (Set.delete i' rs)
+       Nothing -> Token n i Nothing rs
 
 requestToken :: (Ord i) => i -> Token i -> Token i
 requestToken i (Token n o Nothing rs) | i == o = 
@@ -120,8 +126,15 @@ instance (Ord i, CARD s, Monad m) => CvRDT r (Locks i s) m where
   cvmerge _ s1 s2 = pure (s1 <> s2)
   cvempty _ = pure mempty
 
+-- | Create a set of tokens, one for each Conref, which all start out
+-- owned by the given replica id, in an unlocked state.
 initTokens :: (Ord i, CARD s) => [Cr s] -> i -> Locks i s
 initTokens cs i = Tokens $ Map.fromList (zip cs (repeat $ initToken i))
+
+-- | Create an empty set of shared locks.  This can also be
+-- accomplished by using 'mempty'.
+initLocks :: (Ord i, CARD s) => Locks i s
+initLocks = mempty
 
 -- | Get the current request index for an identity
 reqIndex :: (Ord i, CARD s) => i -> Locks i s -> Int
@@ -144,6 +157,7 @@ grant :: (Ord i, CARD s)
 grant ig ir (Tokens ts) = Tokens $ Map.map f ts
   where f (Token n o (Just ss) rs) | ir == o = 
                                      Token n o (Just (Set.insert ig ss)) rs
+        f (Token n o Nothing rs) | ig == o = passToken (Token n o Nothing rs)
         f t = t
 grant ig ir (Locks m) = 
   Locks $ Map.adjust (\(n,c,s) -> if c /= crT
@@ -164,6 +178,9 @@ ungranted i (Tokens ts) = Map.foldrWithKey f [] ts
   where f c (Token _ o (Just ss) rs) cs = if Set.member i ss
                                              then cs
                                              else (o,cr c) : cs
+        f c (Token _ o Nothing rs) cs | o == i = case nextId i rs of
+                                                   Just i' -> (i',cr c) : cs
+                                                   Nothing -> cs
         f _ _ cs = cs
 ungranted i (Locks m) = map (\(ir,(_,c,_)) -> (ir,c)) $ filter ug (Map.assocs m)
   where ug (ir,((_,c,s))) = i /= ir && not (i `Set.member` s) && c /= crT
@@ -197,6 +214,7 @@ permitted' i ce ie (Tokens ts) =
   let f (c, (Token _ o (Just ss) _)) = not (checkLe (cr c) ce ie) 
                                        && Set.member i ss
                                        && o /= i
+      f _ = False
       blockers = filter f $ Map.assocs ts
   in case blockers of
        [] -> Right ()
@@ -227,8 +245,8 @@ requested i c1 (Locks m) = case Map.lookup i m of
 
 -- | Check if node 'i' is holding any locks
 holding :: (Ord i, CARD s) => i -> Locks i s -> Bool
-holding i (Tokens ts) = case Map.lookup i m of
-                          _ -> undefined
+holding i (Tokens ts) | holding' i (Tokens ts) == crT = False
+holding i (Tokens ts) = True
 holding i (Locks m) = case Map.lookup i m of
   Just (_,c,_) -> if c == crT
                      then False
@@ -237,6 +255,9 @@ holding i (Locks m) = case Map.lookup i m of
 
 -- | Return exactly the lock that 'i' is holding
 holding' :: (Ord i, CARD s) => i -> Locks i s -> Conref s
+holding' i (Tokens ts) = Map.foldrWithKey f crT ts
+  where f c t cs | tkState t /= Nothing && tkOwner t == i = cr c |&| cs
+        f _ _ cs = cs
 holding' i (Locks m) = case Map.lookup i m of
   Just (_,c,_) -> c
   Nothing -> crT
@@ -248,6 +269,12 @@ confirmed :: (Ord i, CARD s)
           -> [i] -- ^ List of other participating identities
           -> Locks i s 
           -> Bool
+confirmed self others (Tokens ts) = Map.foldr f True ts
+  where f (Token n o (Just ss) cs) rem | self == o = 
+                                         (Set.isSubsetOf 
+                                            (Set.fromList others) 
+                                            ss) && rem
+        f _ rem = rem
 confirmed self others (Locks m) = 
   case Map.lookup self m of
     Just (_,c,s) -> 

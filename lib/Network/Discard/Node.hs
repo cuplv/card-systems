@@ -81,15 +81,19 @@ runNode' i ipfsAddr net val0 store0 dmsets script = do
 -- network.
 runNode :: (Ord s, ManC (IpfsEG i) c i s (), ToJSON (c (i, Effect s)), ToJSON i, ToJSONKey i, ToJSONKey (Cr s), ToJSON (Cr s), ToJSON (Ef s), FromJSONKey i, FromJSON i, FromJSONKey (Cr s), FromJSON (Cr s), FromJSON (Ef s), FromJSON (c (i, Effect s)), c ~ Edge (IpfsEG i))
         => i -- ^ name
+        -> Bool -- ^ Whether to use tokens
         -> String -- ^ IPFS API URI
         -> NetConf i -- ^ Replica network
         -> DManagerSettings c i s
         -> Script (IpfsEG i) c i s a
         -> IO a
-runNode i ipfsAddr net dmsets script = 
+runNode i useTokens ipfsAddr net dmsets script = 
   fst <$> runNode' i ipfsAddr net val0 store0 dmsets script
   where val0 = baseStoreValue dmsets
-        store0 = ((mempty, Data.EventGraph.empty), mempty)
+        ls0 = if useTokens
+                 then initTokens enumConrefs (minimum $ listIds net)
+                 else mempty -- Creating an empty Locks
+        store0 = ((ls0, Data.EventGraph.empty), mempty)
 
 -- | Run a node, loading the initial state from the given file (if it
 -- exists) and writing the final state to the file on exit (creating

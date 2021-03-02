@@ -84,7 +84,7 @@ node = do
         Just sfile -> 
           runNodeFile (nodeName conf) (localAddr conf) net sfile settings script
         Nothing -> do
-          runNode (nodeName conf) (localAddr conf) net settings script
+          runNode (nodeName conf) True (localAddr conf) net settings script
 
   if isOneshot conf
 

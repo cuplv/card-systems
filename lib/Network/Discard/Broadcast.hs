@@ -16,6 +16,7 @@ module Network.Discard.Broadcast
   , HttpT (..)
   , msgGetter
   , NetConf (..)
+  , listIds
   , others
   , self
   , defaultPort
@@ -127,6 +128,9 @@ instance (ToJSON (BMsg s), FromJSON (BMsg s)) => Carries HttpT s where
 -- | A 'NetConf' associates a 'String' hostname and 'Int' port number
 -- to a set of 'i'-named replica nodes.
 data NetConf i = NetConf (Map i (String, Int)) deriving (Show,Eq,Ord)
+
+listIds :: (Ord i) => NetConf i -> [i]
+listIds (NetConf m) = Map.keys m
 
 others :: (Ord i) => i -> NetConf i -> [(i,(String,Int))]
 others i (NetConf m) = filter (\(i',_) -> i /= i') (Map.toList m)

@@ -7,6 +7,7 @@ module Network.Discard.Experiment2
   , ExpCmd (..)
   , getTime
   , getBatchSize
+  , getUseTokens
   ) where
 
 import GHC.Generics
@@ -30,6 +31,7 @@ data Exp2Conf = Exp2Conf
   , e2WarehouseSize :: Int
   , e2Rate :: Int
   , e2BatchSize :: Int
+  , e2UseTokens :: Bool
   }
   deriving (Eq,Ord,Show,Generic)
 
@@ -61,3 +63,6 @@ instance (Ord i, FromJSON i) => FromJSON (ExpCmd i)
 
 getTime (Right e) = e2Time e
 getTime (Left e) = expTime e
+
+getUseTokens (Right e) = e2UseTokens e
+getUseTokens (Left e) = expUseTokens e

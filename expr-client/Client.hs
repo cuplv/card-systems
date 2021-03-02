@@ -36,12 +36,12 @@ main = do
     Right net -> return net
     Left _ -> die "Could not read net conf file"
   case conf of
-    Client1Conf _ _ _ _ _ -> runExperiment 
-                               (Left $ ExpConf (clientRate conf) "asdf" (uncurry Mix (clientMix conf)) (clientTime conf) (clientBatchSize conf))
-                               net
-    Client2Conf _ _ _ _ _ _ -> runExperiment
-                                (Right $ Exp2Conf (clientUseRes conf) (clientTime conf) False (clientWarehouseSize conf) (clientRate conf) (clientBatchSize conf))
-                                net
+    Client1Conf _ _ _ _ _ _ -> runExperiment 
+                                 (Left $ ExpConf (clientRate conf) "asdf" (uncurry Mix (clientMix conf)) (clientTime conf) (clientBatchSize conf) (clientUseTokens conf))
+                                 net
+    Client2Conf _ _ _ _ _ _ _ -> runExperiment
+                                  (Right $ Exp2Conf (clientUseRes conf) (clientTime conf) False (clientWarehouseSize conf) (clientRate conf) (clientBatchSize conf) (clientUseTokens conf))
+                                  net
 
 data ClientConf i = 
     Client1Conf
@@ -50,6 +50,7 @@ data ClientConf i =
       , clientRate :: Int
       , clientTime :: Int
       , clientBatchSize :: Int
+      , clientUseTokens :: Bool
       }
   | Client2Conf
       { clientNetConf :: FilePath
@@ -58,6 +59,7 @@ data ClientConf i =
       , clientTime :: Int
       , clientUseRes :: Bool
       , clientBatchSize :: Int
+      , clientUseTokens :: Bool
       }
 
 -- conf1CLI :: IO (ClientConf String)
@@ -68,6 +70,7 @@ conf1CLI =
         <*> option auto (long "rate" <> metavar "MICROSEC")
         <*> option auto (long "time" <> metavar "SEC")
         <*> option auto (long "batch-size" <> metavar "OPS" <> help "number of ops to batch before broadcast" <> value defaultBatchSize)
+        <*> switch (long "use-tokens" <> help "use token-passing for locks")
       misc = (fullDesc <> progDesc "Run latency experiment, measuring average op latency")
   in info (parser <**> helper) misc
 
@@ -80,6 +83,7 @@ conf2CLI =
         <*> option auto (long "time" <> metavar "SECS" <> help "length to run experiment")
         <*> switch (long "res" <> help "use reservations")
         <*> option auto (long "batch-size" <> metavar "OPS" <> help "number of ops to batch before broadcast" <> value defaultBatchSize)
+        <*> switch (long "use-tokens" <> help "use token-passing for locks")
       misc = (fullDesc <> progDesc "Run stock experiment, counting total successful sales")
   in info (parser <**> helper) misc
 

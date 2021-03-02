@@ -100,7 +100,7 @@ startExp i ipfsAddr tsize lastv resultsv (ec,nc) = do
       atomically $ swapTVar lastv (Just current)
       -- Start the experiment
       forkIO $ do 
-        results <- runNode i ipfsAddr nc settings (expScript' ec)
+        results <- runNode i (getUseTokens ec) ipfsAddr nc settings (expScript' ec)
         atomically $ modifyTVar resultsv (Map.insert current results)
         putStrLn $ "Finished experiment " ++ show current
       putStrLn $ "Started experiment " ++ show current
